@@ -59,13 +59,11 @@ public class ThreadManager {
             try {
                if(Tasks.isEmpty())
                   Thread.sleep(queryCoolDown);
-               else
-                  try{
-                     Task e =Tasks.pop();
-                     Object output = e.task.call();
-                     e.Complete(output);
-                  }
-                  catch (EmptyStackException ignore){}
+               else {
+                  Task e = Tasks.pop();
+                  Object output = e.task.call();
+                  e.Complete(output);
+               }
 
             } catch (InterruptedException ignore){
 
