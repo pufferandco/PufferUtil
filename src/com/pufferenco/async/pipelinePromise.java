@@ -2,16 +2,15 @@ package com.pufferenco.async;
 
 import java.util.concurrent.Callable;
 
-public class Task {
-   Callable<Object> task;
-   boolean isFinished =false;
+public class pipelinePromise {
+   Object current;
+   volatile boolean isFinished =false;
    Object returnValue=null;
 
-   void Complete(Object value){
-      synchronized (this){
-         isFinished = true;
-         returnValue = value;
-      }
+   void Complete(){
+
+      isFinished = true;
+
    }
    public boolean isFinished(){
       synchronized (this){
@@ -21,15 +20,9 @@ public class Task {
 
    public Object await(int queryCoolDown){
       while(true) {
-         synchronized (this) {
             if (isFinished)
                return returnValue;
-         }
-         try {
-            Thread.sleep(queryCoolDown);
-         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-         }
+
       }
    }
    public Object await(){

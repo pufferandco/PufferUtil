@@ -1,18 +1,16 @@
 package com.pufferenco.async;
 
-import java.util.EmptyStackException;
 import java.util.Stack;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * allows code snippets to execute while your main code is working
+ * allows code snippets to execute asynchronously while your main code is working
  */
 public class ThreadManager {
    private final threader[] threads;
-   private final Stack<Task> Tasks = new Stack<>();
+   private final LinkedBlockingDeque<asyncPromise> Tasks = new LinkedBlockingDeque<>();
    final String name;
    private final int queryCoolDown;
 
@@ -34,16 +32,37 @@ public class ThreadManager {
          threads[i].activeThread.start();
       }
    }
+   public ThreadManager(String name,int Threads){
+      this(name,Threads,0);
+   }
+   public ThreadManager(String name){
+      this(name,2,0);
+   }
+   public ThreadManager(){
+      this("async",2,0);
+   }
 
-   public Task exec(Callable<Object> function){
-      Task task = new Task();
+   /**
+    * puts the function on the stack to be executed
+    * Last in First out (LiFo)
+    * O(1)
+    * @param function the function to run async
+    * @return a asyncPromise which can be read once required
+    */
+   public asyncPromise exec(Callable<Object> function){
+      asyncPromise task = new asyncPromise();
       task.task = function;
       Tasks.add(task);
       return task;
    }
 
 
-   public synchronized void stop(){
+   /**
+    * Finishes the current worked tasks
+    * and then stop all threads.
+    * Beware: does not finish the stack
+    */
+   public void stop(){
       for (threader thread : threads) {
          thread.Cancel.set(true);
       }
@@ -51,22 +70,22 @@ public class ThreadManager {
 
    private class threader implements Runnable{
 
-      private final AtomicBoolean Cancel = new AtomicBoolean(false);
+      volatile AtomicBoolean Cancel = new AtomicBoolean(false);
       Thread activeThread;
       @Override
       public void run() {
          while (!Cancel.get()) {
             try {
-               if(Tasks.isEmpty())
+               asyncPromise e = Tasks.pollFirst();
+               if(e == null) {
                   Thread.sleep(queryCoolDown);
-               else {
-                  Task e = Tasks.pop();
-                  Object output = e.task.call();
-                  e.Complete(output);
+                  continue;
                }
 
-            } catch (InterruptedException ignore){
+               Object output = e.task.call();
+               e.Complete(output);
 
+            } catch (InterruptedException ignore){
             }catch (Exception e) {
                throw new RuntimeException(e);
             }
