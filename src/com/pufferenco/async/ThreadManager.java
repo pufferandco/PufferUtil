@@ -9,7 +9,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 public class ThreadManager {
    private final Object ThreadMonitor = new Object();
    private final threader[] threads;
-   private final LinkedBlockingDeque<asyncPromise> Tasks = new LinkedBlockingDeque<>();
+   private final LinkedBlockingDeque<Promise> Tasks = new LinkedBlockingDeque<>();
 
    /**
     * creates a thread-manager for easy code snippets
@@ -48,11 +48,10 @@ public class ThreadManager {
     * puts the function on the queue
     * O(1)
     * @param function the function to run async
-    * @return a asyncPromise which can be read once required
+    * @return a Promise which can be read once required
     */
-   public asyncPromise exec(Callable<Object> function){
-      asyncPromise task = new asyncPromise();
-      task.Caller = Thread.currentThread();
+   public <V> Promise<V> exec(Callable<V> function){
+      Promise<V> task = new Promise<>();
       task.task = function;
       Tasks.add(task);
 
@@ -66,7 +65,7 @@ public class ThreadManager {
 
    /**
     * Finishes the queue
-    * and then Finish all threads.
+    * and then close all threads.
     */
    public void Finish(){
       for (threader thread : threads) {
@@ -85,7 +84,7 @@ public class ThreadManager {
       public void run() {
          while (true) {
             try {
-               asyncPromise e = Tasks.pollFirst();
+               Promise e = Tasks.pollFirst();
 
                if(e == null) {
                   if(Finish)
