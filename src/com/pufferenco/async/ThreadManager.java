@@ -1,29 +1,23 @@
 package com.pufferenco.async;
 
-import java.util.Stack;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * allows code snippets to execute asynchronously while your main code is working
  */
 public class ThreadManager {
+   private final Object ThreadMonitor = new Object();
    private final threader[] threads;
    private final LinkedBlockingDeque<asyncPromise> Tasks = new LinkedBlockingDeque<>();
-   final String name;
-   private final int queryCoolDown;
 
    /**
     * creates a thread-manager for easy code snippets
     * useful for loading and writing files
     * @param name the naming of the Threads
     * @param Threads the amount of threads
-    * @param queryCoolDown the coolDown each thread waits when no task is found on the stack
     */
-   public ThreadManager(String name,int Threads,int queryCoolDown){
-      this.name = name;
-      this.queryCoolDown = queryCoolDown;
+   public ThreadManager(String name,int Threads){
       threads = new threader[Threads];
       for (int i = 0; i < threads.length; i++) {
          threads[i] = new threader();
@@ -32,64 +26,82 @@ public class ThreadManager {
          threads[i].activeThread.start();
       }
    }
-   public ThreadManager(String name,int Threads){
-      this(name,Threads,0);
-   }
+   /**
+    * creates a thread-manager for easy code snippets
+    * useful for loading and writing files
+    * same as running ThreadManager(name,2)
+    * @param name the naming of the Threads
+    */
    public ThreadManager(String name){
-      this(name,2,0);
+      this(name,2);
    }
+   /**
+    * creates a thread-manager for easy code snippets
+    * useful for loading and writing files
+    * same as running ThreadManager("async",2)
+    */
    public ThreadManager(){
-      this("async",2,0);
+      this("async",2);
    }
 
    /**
-    * puts the function on the stack to be executed
-    * Last in First out (LiFo)
+    * puts the function on the queue
     * O(1)
     * @param function the function to run async
     * @return a asyncPromise which can be read once required
     */
    public asyncPromise exec(Callable<Object> function){
       asyncPromise task = new asyncPromise();
+      task.Caller = Thread.currentThread();
       task.task = function;
       Tasks.add(task);
+
+      synchronized (ThreadMonitor) {
+         ThreadMonitor.notifyAll();
+      }
+
       return task;
    }
 
 
    /**
-    * Finishes the current worked tasks
-    * and then stop all threads.
-    * Beware: does not finish the stack
+    * Finishes the queue
+    * and then Finish all threads.
     */
-   public void stop(){
+   public void Finish(){
       for (threader thread : threads) {
-         thread.Cancel.set(true);
+         thread.Finish = true;
+      }
+      synchronized (ThreadMonitor) {
+         ThreadMonitor.notifyAll();
       }
    }
 
    private class threader implements Runnable{
-
-      volatile AtomicBoolean Cancel = new AtomicBoolean(false);
+      volatile boolean Finish = false;
       Thread activeThread;
+
       @Override
       public void run() {
-         while (!Cancel.get()) {
+         while (true) {
             try {
                asyncPromise e = Tasks.pollFirst();
-               if(e == null) {
-                  Thread.sleep(queryCoolDown);
-                  continue;
-               }
 
+               if(e == null) {
+                  if(Finish)
+                     break;
+
+                  synchronized (ThreadMonitor) {
+                     ThreadMonitor.wait();
+                     continue;
+                  }
+               }
                Object output = e.task.call();
                e.Complete(output);
 
-            } catch (InterruptedException ignore){
-            }catch (Exception e) {
-               throw new RuntimeException(e);
+               }catch (Exception exception) {throw new RuntimeException(exception);}
             }
          }
       }
    }
-}
+
