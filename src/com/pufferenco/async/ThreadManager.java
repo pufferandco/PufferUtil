@@ -84,7 +84,8 @@ public class ThreadManager {
       public void run() {
          while (true) {
             try {
-               Promise e = Tasks.pollFirst();
+               @SuppressWarnings("Raw Types")
+               Promise<Object> e = Tasks.pollFirst();
 
                if(e == null) {
                   if(Finish)
